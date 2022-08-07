@@ -5,65 +5,75 @@ import requests
 import json
 import asyncio
 import time
+import random
 from util import download
 from concurrent.futures import ThreadPoolExecutor
 
-api_url = 'https://api.curseforge.com/v1'
-api_key = 'TODO'
+api_url = 'https://api.modpacks.ch/public'
 
 def get_json(session, url):
-    r = session.get(url)
-    if r.status_code != 200:
-        print("Error %d trying to access %s" % (r.status_code, url))
-        print(r.text)
-        return None
+    rnd = random.random()
+    time.sleep(rnd)
+    gotit = False
+    for tout in [3,3,4,4]:
+        try:
+            print("GET (json) " + url)
+            r = session.get(url, timeout=tout)
+            gotit = True
+            break
+        except requests.Timeout as e:
+            print("timeout " + str(tout) +  "  " + url)
+    if not gotit:
+        try:
+            print("GET (json, long timeout) " + url)
+            r = session.get(url, timeout=30)
+            gotit = True
+        except requests.Timeout as e:
+            print("timeout")
+            import traceback
+            traceback.print_exc()
+            print("Error timeout trying to access %s" % url)
+            return None
 
-    time.sleep(0.2)
+    time.sleep(1-rnd)
 
     return json.loads(r.text)
 
 def fetch_mod(session, f, out_dir):
     pid = f['projectID']
     fid = f['fileID']
-    project_info = get_json(session, api_url + ('/mods/%d' % pid))
+    project_info = get_json(session, api_url + ('/mod/%d' % pid))
     if project_info is None:
         print("fetch failed")
         return (f, 'error')
-    project_info = project_info['data']
 
-    # print(project_info)
-    print(project_info['links']['websiteUrl'])
-    file_type = project_info['links']['websiteUrl'].split('/')[4] # mc-mods or texture-packs
-    info = get_json(session, api_url + ('/mods/%d/files/%d' % (pid, fid)))
-    if info is None:
-        print("fetch failed")
+    file_type = "mc-mods"
+    info = [x for x in project_info["versions"] if x["id"] == fid]
+
+    if len(info) != 1:
+        print("Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
         return (f, 'error')
-    info = info['data']
+    info = info[0]
 
-    fn = info['fileName']
-    dl = info['downloadUrl']
+    fn = info['name']
+    dl = info['url']
     out_file = out_dir + '/' + fn
 
-    if not project_info['allowModDistribution']:
-        print("distribution disabled for this mod")
-        dl = "https://edge.forgecdn.net/files/%s/%s/%s" % (str(info['id'])[:4], str(info['id'])[4:], info['fileName'])
-        #return (f, 'dist-error', project_info, out_file, file_type)
-
     if os.path.exists(out_file):
-        if os.path.getsize(out_file) == info['fileLength']:
+        if os.path.getsize(out_file) == info['size']:
             print("%s OK" % fn)
             return (out_file, file_type)
     
-    status = download(dl, out_file, session=session, progress=True)
+    print("GET (mjar) " + dl)
+    status = download(dl, out_file, session=session, progress=False)
     if status != 200:
         print("download failed (error %d)" % status)
         return (f, 'error')
     return (out_file, file_type)
 
 async def download_mods_async(manifest, out_dir):
-    with ThreadPoolExecutor(max_workers=1) as executor, \
+    with ThreadPoolExecutor(max_workers=8) as executor, \
             requests.Session() as session:
-        session.headers['X-Api-Key'] = api_key
         loop = asyncio.get_event_loop()
         tasks = []
         for f in manifest['files']:

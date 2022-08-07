@@ -16,6 +16,10 @@ CurseForge changed their API, making it difficult for third-party launchers
 to download modpacks. This project downloads an entire modpack into a folder
 that you can import into the launcher of your choice: Be it MultiMC, PolyMC,
 
+This fork has removed all references to the CurseForge API, and instead uses
+the publicly available modpacks.ch API. This means that no API key is required
+for usage.
+
 ## Fork
 
 This is a fork of [modpack-installer]. This means this project is based on

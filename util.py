@@ -21,8 +21,6 @@ def status_bar(text, progress, bar_width=0.5, show_percent=True, borders='[]', p
     print("%s %s%3.0f%% %s" % (text_part, pad, (progress * 100), bar), end=ansi_el)
     
 def download(url, dest, progress=False, session=None):
-    print("Downloading %s" % url)
-
     try:
         if session is not None:
             r = session.get(url, stream=True)
@@ -39,7 +37,7 @@ def download(url, dest, progress=False, session=None):
                 for chunk in r.iter_content(1048576):
                     f.write(chunk)
                     n += len(chunk)
-                    status_bar(url, n / size)
+                    #status_bar(url, n / size)
             else:
                 f.write(r.content)
     except requests.RequestException:
