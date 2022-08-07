@@ -9,9 +9,7 @@ from util import download
 from concurrent.futures import ThreadPoolExecutor
 
 api_url = 'https://api.curseforge.com/v1'
-# NOTE: Modified and/or forked versions of this project must not use this API key.
-# Instead, please apply for a new API key from CurseForge's website.
-api_key = '$2a$10$t2BUHi3wKkiMw1YEqItui.XaHDvw4yMLK2peaKGkI9ufv3IsYRlkW'
+api_key = 'TODO'
 
 # temporary rate limit before CF implements a real one
 api_ratelimit = 3 # JSON requests per second
