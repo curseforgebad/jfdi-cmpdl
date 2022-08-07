@@ -57,7 +57,8 @@ def fetch_mod(session, f, out_dir):
 
     if not project_info['allowModDistribution']:
         print("distribution disabled for this mod")
-        return (f, 'dist-error', project_info, out_file, file_type)
+        dl = "https://edge.forgecdn.net/files/%s/%s/%s" % (str(info['id'])[:4], str(info['id'])[4:], info['fileName'])
+        #return (f, 'dist-error', project_info, out_file, file_type)
 
     if os.path.exists(out_file):
         if os.path.getsize(out_file) == info['fileLength']:
