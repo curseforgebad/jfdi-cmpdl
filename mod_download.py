@@ -11,10 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 api_url = 'https://api.curseforge.com/v1'
 api_key = 'TODO'
 
-# temporary rate limit before CF implements a real one
-api_ratelimit = 3 # JSON requests per second
-req_history = [0, 0] # time, request count so far
-
 def get_json(session, url):
     r = session.get(url)
     if r.status_code != 200:
@@ -22,14 +18,7 @@ def get_json(session, url):
         print(r.text)
         return None
 
-    req_history[1] += 1
-    while req_history[1] >= api_ratelimit:
-        if time.perf_counter() > req_history[0] + 1:
-            req_history[0] = time.perf_counter()
-            req_history[1] = 0
-            break
-        s_remaining = max(0, req_history[0] + 1 - time.perf_counter())
-        time.sleep(s_remaining)
+    time.sleep(0.2)
 
     return json.loads(r.text)
 
