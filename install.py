@@ -5,6 +5,8 @@
 # This tool requires that the user download the pack zip from CurseForge. It
 # will then generate a complete modpack directory that can be imported into
 # a launcher of the user's choice.
+#
+# Please see the included README file for more info.
 
 import mod_download
 import os
