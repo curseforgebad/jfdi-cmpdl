@@ -3,11 +3,9 @@
 # This program is an alternative to the Twitch client, written for Linux users,
 # so that they can install Minecraft modpacks from CurseForge.
 # This tool requires that the user download the pack zip from CurseForge. It
-# will then generate a complete Minecraft install directory with all of the
-# mods and overrides installed.
+# will then generate a complete modpack directory that can be imported into
+# a launcher of the user's choice.
 
-import forge_install
-import fabric_install
 import mod_download
 import os
 import sys
@@ -20,13 +18,10 @@ import argparse
 from distutils.dir_util import copy_tree
 from zipfile import ZipFile
 
-def start_launcher(mc_dir):
-    subprocess.run(['minecraft-launcher', '--workDir', os.path.abspath(mc_dir)])
-
 def get_user_mcdir():
     return os.getenv('HOME') + '/.minecraft'
 
-def main(zipfile, user_mcdir=None, manual=False):
+def main(zipfile, user_mcdir=None):
     if user_mcdir is None:
         user_mcdir = get_user_mcdir()
 
@@ -70,8 +65,6 @@ def main(zipfile, user_mcdir=None, manual=False):
         os.symlink(os.path.abspath('global/shaderpacks'), mc_dir + '/shaderpacks', True)
         os.symlink(os.path.abspath('global/assets'), mc_dir + '/assets', True)
 
-    # Install Forge
-    print("Installing modloader")
     try:
         with open(packdata_dir + '/manifest.json', 'r') as mf:
             manifest = json.load(mf)
@@ -80,60 +73,9 @@ def main(zipfile, user_mcdir=None, manual=False):
         print(e)
         return
 
-    # supported modloaders and their run-functions
-    # The run function will take the following arguments:
-    # * manifest JSON
-    # * minecraft version
-    # * modloader version
-    # * modpack name
-    # * minecraft directory
-    # * manual flag: run automatically or show GUI
-    modloaders = {
-        'forge': forge_install,
-        'fabric': fabric_install
-    }
-
-    # I have not yet seen a modpack that has multiple modloaders
-    if len(manifest['minecraft']['modLoaders']) != 1:
-        print("This modpack (%s) has %d modloaders, instead of the normal 1."
-                % (packname, len(manifest['minecraft']['modLoaders'])))
-        print("This is currently unsupported, so expect the installation to fail in some way.")
-        print("Please report which modpack caused this to the maintainer at:")
-        print("  https://github.com/cdbbnnyCode/modpack-installer/issues")
-    modloader, mlver = manifest['minecraft']['modLoaders'][0]["id"].split('-')
-    mcver = manifest['minecraft']['version']
-
-    if not modloader in modloaders:
-        print("This modloader (%s) is not supported." % modloader)
-        print("Currently, the only supported modloaders are %s" % modloaders)
-        return
-
-    print("Updating user launcher profiles")
-
-    # user_mcdir = get_user_mcdir()
-    with open(user_mcdir + '/launcher_profiles.json', 'r') as f:
-        launcher_profiles = json.load(f)
-
-    # add/overwrite the profile
-    # TODO: add options for maximum memory
-    # or config file for the java argument string
-    ml_version_id = modloaders[modloader].get_version_id(mcver, mlver)
-    launcher_profiles['profiles'][packname] = {
-        "icon": "Chest",
-        "javaArgs": "-Xmx4G -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M",
-        "lastVersionId": ml_version_id,
-        "name": packname.replace('+', ' '),
-        "gameDir": os.path.abspath(mc_dir),
-        "type": "custom"
-    }
-    
-    with open(user_mcdir + '/launcher_profiles.json', 'w') as f:
-        json.dump(launcher_profiles, f, indent=2)
-
-    if not os.path.exists(user_mcdir + '/versions/' + ml_version_id):
-        modloaders[modloader].main(manifest, mcver, mlver, packname, user_mcdir, manual)
-    else:
-        print("[modloader already installed]")
+    ml_message = 'You need to install: '
+    for modloader in manifest['minecraft']['modLoaders']:
+        ml_message = ml_message + modloader['id'] + " "
 
     # Download mods
     if not os.path.exists(mc_dir + '/.mod_success'):
@@ -232,13 +174,12 @@ def main(zipfile, user_mcdir=None, manual=False):
     print()
     print()
     print()
-    print("To launch your new modpack, just open the Minecraft launcher normally.")
-    print("The modpack will be available in your installations list.")
+    print("The modpack has been downloaded")
+    print(ml_message)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('zipfile')
-    parser.add_argument('--manual', dest='forge_disable', action='store_true')
     parser.add_argument('--mcdir', dest='mcdir')
     args = parser.parse_args(sys.argv[1:])
-    main(args.zipfile, args.mcdir, args.forge_disable)
+    main(args.zipfile, args.mcdir)
