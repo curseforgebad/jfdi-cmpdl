@@ -15,10 +15,12 @@ Download Minecraft modpacks from CurseForge.
 CurseForge changed their API, making it difficult for third-party launchers
 to download modpacks. This project downloads an entire modpack into a folder
 that you can import into the launcher of your choice: Be it MultiMC, PolyMC,
+or even the vanilla Minecraft launcher.
 
 This fork has removed all references to the CurseForge API, and instead uses
 the publicly available modpacks.ch API. This means that no API key is required
-for usage.
+for usage. The next section gives more details about the original project that
+this project is forked from.
 
 ## Fork
 
