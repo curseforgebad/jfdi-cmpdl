@@ -18,8 +18,8 @@ import time
 import random
 import shutil
 import argparse
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from distutils.dir_util import copy_tree
 from zipfile import ZipFile
 
 
@@ -136,17 +136,12 @@ def main(zipfile, user_mcdir=None):
                     cp_safe(os.path.abspath(jar), modfile)
             elif type == 'texture-packs':
                 print("Extracting texture pack %s" % jar)
-                texpack_dir = '/tmp/%06d' % random.randint(0, 999999)
-                os.mkdir(texpack_dir)
-                with ZipFile(jar, 'r') as zip:
-                    zip.extractall(texpack_dir)
-                for dir in os.listdir(texpack_dir + '/assets'):
-                    f = texpack_dir + '/assets/' + dir
-                    if os.path.isdir(f):
-                        copy_tree(f, mc_dir + '/resources/' + dir)
-                    else:
-                        shutil.copyfile(f, mc_dir + '/resources/' + dir)
-                shutil.rmtree(texpack_dir)
+                with tempfile.TemporaryDirectory() as texpack_dir:
+                    with ZipFile(jar, 'r') as zip:
+                        zip.extractall(texpack_dir)
+                    for dir in os.listdir(texpack_dir + '/assets'):
+                        f = texpack_dir + '/assets/' + dir
+                        cp_safe(f, mc_dir + '/resources/' + dir)
             else:
                 print("Unknown file type %s" % type)
                 sys.exit(1)
@@ -337,7 +332,7 @@ def cp_safe(src, dst):
     if os.path.exists(dst):
         raise FileExistsError("Cannot copy '%s' -> '%s' because the destination already exists" % (src, dst))
     if os.path.isdir(src):
-        copy_tree(src, dst)
+        shutil.copytree(src, dst)
     else:
         shutil.copyfile(src, dst)
 
