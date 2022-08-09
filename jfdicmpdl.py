@@ -171,13 +171,17 @@ def main(zipfile, user_mcdir=None):
         pass
 
     # Copy overrides
-    print("Copying overrides")
-    for dir in os.listdir(packdata_dir + '/overrides'):
-        print(dir + "...")
-        if os.path.isdir(packdata_dir + '/overrides/' + dir):
-            copy_tree(packdata_dir + '/overrides/' + dir, mc_dir + '/' + dir)
-        else:
-            shutil.copyfile(packdata_dir + '/overrides/' + dir, mc_dir + '/' + dir)
+    override_dir = packdata_dir + '/overrides/'
+    if os.path.exists(override_dir):
+        print("Copying overrides")
+        for dir in os.listdir(override_dir):
+            print(dir + "...")
+            if os.path.isdir(override_dir + dir):
+                copy_tree(override_dir + dir, mc_dir + '/' + dir)
+            else:
+                shutil.copyfile(override_dir + dir, mc_dir + '/' + dir)
+    else:
+        print("This pack does not appear to include overrides")
     print("Done!")
     print()
     print()
