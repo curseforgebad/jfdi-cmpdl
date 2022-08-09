@@ -8,7 +8,7 @@ Download Minecraft modpacks from CurseForge.
 
 ## How to use it
 
-`$ python install.py path/to/zip/file`
+`$ python jfdicmpdl.py path/to/zip/file`
 
 ## Why?
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# CurseForge modpack installer
+# CurseForge modpack downloader
 # This program is an alternative to the Twitch client, written for Linux users,
 # so that they can install Minecraft modpacks from CurseForge.
 # This tool requires that the user download the pack zip from CurseForge. It
