@@ -187,47 +187,47 @@ def main(zipfile, user_mcdir=None):
 
 # MOD DOWNLOADING
 
-def get_json(session, url):
+def get_json(session, url, logtag):
     rnd = random.random()
     time.sleep(rnd)
     gotit = False
     for tout in [3,3,4,4]:
         try:
-            print("GET (json) " + url)
+            print(logtag + "GET (json) " + url)
             r = session.get(url, timeout=tout)
             gotit = True
             break
         except requests.Timeout as e:
-            print("timeout " + str(tout) +  "  " + url)
+            print(logtag + "timeout " + str(tout) +  "  " + url)
     if not gotit:
         try:
-            print("GET (json, long timeout) " + url)
+            print(logtag + "GET (json, long timeout) " + url)
             r = session.get(url, timeout=30)
             gotit = True
         except requests.Timeout as e:
-            print("timeout")
+            print(logtag + "timeout")
             import traceback
             traceback.print_exc()
-            print("Error timeout trying to access %s" % url)
+            print(logtag + "Error timeout trying to access %s" % url)
             return None
 
     time.sleep(1-rnd)
 
     return json.loads(r.text)
 
-def fetch_mod(session, f, out_dir):
+def fetch_mod(session, f, out_dir, logtag):
     pid = f['projectID']
     fid = f['fileID']
-    project_info = get_json(session, API_URL + ('/mod/%d' % pid))
+    project_info = get_json(session, API_URL + ('/mod/%d' % pid), logtag)
     if project_info is None:
-        print("fetch failed")
+        print(logtag + "fetch failed")
         return (f, 'error')
 
     file_type = "mc-mods"
     info = [x for x in project_info["versions"] if x["id"] == fid]
 
     if len(info) != 1:
-        print("Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
+        print(logtag + "Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
         return (f, 'error')
     info = info[0]
 
@@ -237,13 +237,13 @@ def fetch_mod(session, f, out_dir):
 
     if os.path.exists(out_file):
         if os.path.getsize(out_file) == info['size']:
-            print("%s OK" % fn)
+            print(logtag + "%s OK" % fn)
             return (out_file, file_type)
 
-    print("GET (mjar) " + dl)
+    print(logtag + "GET (mjar) " + dl)
     status = download(dl, out_file, session=session, progress=False)
     if status != 200:
-        print("download failed (error %d)" % status)
+        print(logtag + "download failed (error %d)" % status)
         return (f, 'error')
     return (out_file, file_type)
 
@@ -252,8 +252,12 @@ async def download_mods_async(manifest, out_dir):
             requests.Session() as session:
         loop = asyncio.get_event_loop()
         tasks = []
-        for f in manifest['files']:
-            task = loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir))
+        maxn = len(manifest['files'])
+
+        print("Downloading %s mods" % maxn)
+        for n, f in enumerate(manifest['files']):
+            logtag = "[" + str(n+1) + "/" + str(maxn) + "] "
+            task = loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir, logtag))
             tasks.append(task)
 
         jars = []
@@ -286,8 +290,6 @@ def download_all_mods(manifest_json, mods_dir):
     mod_jars = []
     with open(manifest_json, 'r') as f:
         manifest = json.load(f)
-
-    print("Downloading mods")
 
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(download_mods_async(manifest, mods_dir))
