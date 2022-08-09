@@ -58,21 +58,6 @@ def main(zipfile, user_mcdir=None):
             os.mkdir('packs/' + packname)
         os.mkdir(mc_dir)
 
-        print("Creating symlinks")
-        if not os.path.isdir('global/'):
-            os.mkdir('global')
-            os.mkdir('global/libraries')
-            os.mkdir('global/resourcepacks')
-            os.mkdir('global/saves')
-            os.mkdir('global/shaderpacks')
-            os.mkdir('global/assets')
-
-        os.symlink(os.path.abspath('global/libraries'), mc_dir + '/libraries', True)
-        os.symlink(os.path.abspath('global/resourcepacks'), mc_dir + '/resourcepacks', True)
-        os.symlink(os.path.abspath('global/saves'), mc_dir + '/saves', True)
-        os.symlink(os.path.abspath('global/shaderpacks'), mc_dir + '/shaderpacks', True)
-        os.symlink(os.path.abspath('global/assets'), mc_dir + '/assets', True)
-
     try:
         with open(packdata_dir + '/manifest.json', 'r') as mf:
             manifest = json.load(mf)
@@ -138,7 +123,7 @@ def main(zipfile, user_mcdir=None):
                     break
 
         # Link mods
-        print("Linking mods")
+        print("Copying mods")
         if not os.path.isdir(mc_dir + '/resources'):
             os.mkdir(mc_dir + '/resources')
 
@@ -148,7 +133,7 @@ def main(zipfile, user_mcdir=None):
             if type == 'mc-mods':
                 modfile = mc_dir + '/mods/' + os.path.basename(jar)
                 if not os.path.exists(modfile):
-                    os.symlink(os.path.abspath(jar), modfile)
+                    cp_safe(os.path.abspath(jar), modfile)
             elif type == 'texture-packs':
                 print("Extracting texture pack %s" % jar)
                 texpack_dir = '/tmp/%06d' % random.randint(0, 999999)
@@ -347,6 +332,14 @@ def download(url, dest, progress=False, session=None):
         print()
 
     return r.status_code
+
+def cp_safe(src, dst):
+    if os.path.exists(dst):
+        raise FileExistsError("Cannot copy '%s' -> '%s' because the destination already exists" % (src, dst))
+    if os.path.isdir(src):
+        copy_tree(src, dst)
+    else:
+        shutil.copyfile(src, dst)
 
 # And, of course, the main:
 
