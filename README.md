@@ -30,12 +30,12 @@ original authors and it also doesn't mean that it's endorsed by them. Please
 do not contact the original authors about problems with this very project,
 instead contact the fork authors. Thank you.
 
+[modpack-installer]: https://github.com/cdbbnnyCode/modpack-installer
+
 However, the authors of JFDI-CMPDL would like to take this opportunity to
 express their gratitude for the modpack-installer codebase.
 
 ## Downloading
-
-[modpack-installer]: https://github.com/cdbbnnyCode/modpack-installer
 
 This fork is available on [BitBucket], [GitLab], [CodeBerg], [SourceHut],
 [NotABug] and [GitGud].
