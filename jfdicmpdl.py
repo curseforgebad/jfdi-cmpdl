@@ -8,17 +8,23 @@
 #
 # Please see the included README file for more info.
 
-import mod_download
 import os
 import sys
+import requests
 import json
+import asyncio
 import subprocess
 import time
 import random
 import shutil
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from distutils.dir_util import copy_tree
 from zipfile import ZipFile
+
+
+API_URL = 'https://api.modpacks.ch/public'
+
 
 def get_user_mcdir():
     return os.getenv('HOME') + '/.minecraft'
@@ -92,7 +98,7 @@ def main(zipfile, user_mcdir=None):
         #     subprocess.run(['npm', 'install'])
         # subprocess.run(['node', 'mod_download.js', packdata_dir + '/manifest.json', '.modcache', packdata_dir + '/mods.json'])
 
-        mods, manual_downloads = mod_download.main(packdata_dir + '/manifest.json', '.modcache')
+        mods, manual_downloads = download_all_mods(packdata_dir + '/manifest.json', '.modcache')
         if len(manual_downloads) > 0:
             while True:
                 actual_manual_dls = [] # which ones aren't already downloaded
@@ -178,6 +184,165 @@ def main(zipfile, user_mcdir=None):
     print()
     print("The modpack has been downloaded")
     print(ml_message)
+
+# MOD DOWNLOADING
+
+def get_json(session, url):
+    rnd = random.random()
+    time.sleep(rnd)
+    gotit = False
+    for tout in [3,3,4,4]:
+        try:
+            print("GET (json) " + url)
+            r = session.get(url, timeout=tout)
+            gotit = True
+            break
+        except requests.Timeout as e:
+            print("timeout " + str(tout) +  "  " + url)
+    if not gotit:
+        try:
+            print("GET (json, long timeout) " + url)
+            r = session.get(url, timeout=30)
+            gotit = True
+        except requests.Timeout as e:
+            print("timeout")
+            import traceback
+            traceback.print_exc()
+            print("Error timeout trying to access %s" % url)
+            return None
+
+    time.sleep(1-rnd)
+
+    return json.loads(r.text)
+
+def fetch_mod(session, f, out_dir):
+    pid = f['projectID']
+    fid = f['fileID']
+    project_info = get_json(session, API_URL + ('/mod/%d' % pid))
+    if project_info is None:
+        print("fetch failed")
+        return (f, 'error')
+
+    file_type = "mc-mods"
+    info = [x for x in project_info["versions"] if x["id"] == fid]
+
+    if len(info) != 1:
+        print("Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
+        return (f, 'error')
+    info = info[0]
+
+    fn = info['name']
+    dl = info['url']
+    out_file = out_dir + '/' + fn
+
+    if os.path.exists(out_file):
+        if os.path.getsize(out_file) == info['size']:
+            print("%s OK" % fn)
+            return (out_file, file_type)
+
+    print("GET (mjar) " + dl)
+    status = download(dl, out_file, session=session, progress=False)
+    if status != 200:
+        print("download failed (error %d)" % status)
+        return (f, 'error')
+    return (out_file, file_type)
+
+async def download_mods_async(manifest, out_dir):
+    with ThreadPoolExecutor(max_workers=8) as executor, \
+            requests.Session() as session:
+        loop = asyncio.get_event_loop()
+        tasks = []
+        for f in manifest['files']:
+            task = loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir))
+            tasks.append(task)
+
+        jars = []
+        manual_downloads = []
+        while len(tasks) > 0:
+            retry_tasks = []
+
+            for resp in await asyncio.gather(*tasks):
+                if resp[1] == 'error':
+                    print("failed to fetch %s, retrying later" % resp[0])
+                    retry_tasks.append(resp[0])
+                elif resp[1] == 'dist-error':
+                    manual_dl_url = resp[2]['links']['websiteUrl'] + '/download/' + str(resp[0]['fileID'])
+                    manual_downloads.append((manual_dl_url, resp))
+                    # add to jars list so that the file gets linked
+                    jars.append(resp[3:])
+                else:
+                    jars.append(resp)
+
+            tasks = []
+            if len(retry_tasks) > 0:
+                print("retrying...")
+                time.sleep(2)
+            for f in retry_tasks:
+                tasks.append(loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir)))
+        return jars, manual_downloads
+
+
+def download_all_mods(manifest_json, mods_dir):
+    mod_jars = []
+    with open(manifest_json, 'r') as f:
+        manifest = json.load(f)
+
+    print("Downloading mods")
+
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(download_mods_async(manifest, mods_dir))
+    loop.run_until_complete(future)
+    return future.result()
+
+def status_bar(text, progress, bar_width=0.5, show_percent=True, borders='[]', progress_ch='#', space_ch=' '):
+    ansi_el = '\x1b[K\r' # escape code to clear the rest of the line plus carriage return
+    term_width = shutil.get_terminal_size().columns
+    if term_width < 10:
+        print(end=ansi_el)
+        return
+    bar_width_c = max(int(term_width * bar_width), 4)
+    text_width = min(term_width - bar_width_c - 6, len(text)) # subract 4 characters for percentage and 2 spaces
+    text_part = '' if (text_width == 0) else text[-text_width:]
+
+    progress_c = int(progress * (bar_width_c - 2))
+    remaining_c = bar_width_c - 2 - progress_c
+    padding_c = max(0, term_width - bar_width_c - text_width - 6)
+
+    bar = borders[0] + progress_ch * progress_c + space_ch * remaining_c + borders[1]
+    pad = ' ' * padding_c
+    print("%s %s%3.0f%% %s" % (text_part, pad, (progress * 100), bar), end=ansi_el)
+
+def download(url, dest, progress=False, session=None):
+    try:
+        if session is not None:
+            r = session.get(url, stream=True)
+        else:
+            r = requests.get(url, stream=True)
+        size = int(r.headers['Content-Length'])
+
+        if r.status_code != 200:
+            return r.status_code
+
+        with open(dest, 'wb') as f:
+            if progress:
+                n = 0
+                for chunk in r.iter_content(1048576):
+                    f.write(chunk)
+                    n += len(chunk)
+                    #status_bar(url, n / size)
+            else:
+                f.write(r.content)
+    except requests.RequestException:
+        return -1
+    except OSError:
+        return -2
+
+    if progress:
+        print()
+
+    return r.status_code
+
+# And, of course, the main:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
