@@ -37,18 +37,16 @@ express their gratitude for the modpack-installer codebase.
 
 ## Downloading
 
-This fork is available on [BitBucket], [GitLab], [CodeBerg], [SourceHut],
+This fork is available on [GitHub], [BitBucket], [GitLab], [CodeBerg], [SourceHut],
 [NotABug] and [GitGud].
 
-<!--We're still working on uploading it to [GitHub]. Stay tuned.-->
-
+[GitHub]: https://github.com/curseforgebad/jfdi-cmpdl
 [BitBucket]: https://bitbucket.org/curseforgebad/jfdi-cmpdl/src/main/
 [GitLab]: https://gitlab.com/curseforgebad/jfdi-cmpdl
 [CodeBerg]: https://codeberg.org/curseforgebad/jfdi-cmpdl
 [SourceHut]: https://git.sr.ht/~curseforgebad/jfdi-cmpdl
 [NotABug]: https://notabug.org/curseforgebad/jfdi-cmpdl
 [GitGud]: https://gitgud.io/curseforgebad/jfdi-cmpdl
-[GitHub]: https://github.com/curseforgebad/jfdi-cmpdl
 
 ## License
 
