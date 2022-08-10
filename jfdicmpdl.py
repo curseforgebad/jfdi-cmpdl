@@ -164,8 +164,6 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
 # MOD DOWNLOADING
 
 def get_json(session, url, logtag):
-    rnd = random.random() * SLEEP_SECONDS
-    time.sleep(rnd)
     gotit = False
     for tout in [3,5,10,20,30]:
         try:
@@ -186,11 +184,11 @@ def get_json(session, url, logtag):
             print(logtag + "Error timeout trying to access %s" % url)
             return None
 
-    time.sleep(SLEEP_SECONDS - rnd)
-
     return json.loads(r.text)
 
 def fetch_mod(session, f, out_dir, logtag, attempt):
+    rnd = random.random() * SLEEP_SECONDS
+    time.sleep(rnd)
     try:
         pid = f['projectID']
         fid = f['fileID']
@@ -219,6 +217,7 @@ def fetch_mod(session, f, out_dir, logtag, attempt):
 
         print(logtag + "GET (mjar) " + dl)
         status = download(dl, out_file, session=session, progress=False)
+        time.sleep(SLEEP_SECONDS - rnd)
         if sha1_expected != sha1(out_file):
             print(logtag + "download failed (SHA1 mismatch!)" % status)
             return (f, 'error')
