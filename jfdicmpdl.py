@@ -163,18 +163,18 @@ def get_json(session, url, logtag):
     rnd = random.random()
     time.sleep(rnd)
     gotit = False
-    for tout in [3,3,4,4]:
+    for tout in [3,5,10,20,30]:
         try:
             print(logtag + "GET (json) " + url)
             r = session.get(url, timeout=tout)
             gotit = True
             break
         except requests.Timeout as e:
-            print(logtag + "timeout " + str(tout) +  "  " + url)
+            print(logtag + "timeout %02d %s" % (tout, url))
     if not gotit:
         try:
             print(logtag + "GET (json, long timeout) " + url)
-            r = session.get(url, timeout=30)
+            r = session.get(url, timeout=120)
             gotit = True
         except requests.Timeout as e:
             print(logtag + "timeout")
