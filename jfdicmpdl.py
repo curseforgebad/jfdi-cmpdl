@@ -26,37 +26,32 @@ from zipfile import ZipFile
 API_URL = 'https://api.modpacks.ch/public'
 
 
-def get_user_mcdir():
-    return os.getenv('HOME') + '/.minecraft'
 
-def main(zipfile, user_mcdir=None):
-    if user_mcdir is None:
-        user_mcdir = get_user_mcdir()
-
+def main(zipfile, *, packdata_dir, mc_dir=None):
     # Extract pack
     packname = os.path.splitext(zipfile)[0]
     packname = os.path.basename(packname)
-    packdata_dir = '.packs/' + packname
-    if os.path.isdir(packdata_dir):
-        print("[pack data already unzipped]")
-    else:
-        if not os.path.isdir('.packs/'):
-            os.mkdir('.packs')
-        print("Extracting %s" % zipfile)
-        with ZipFile(zipfile, 'r') as zip:
-            zip.extractall(packdata_dir)
 
-    # Generate minecraft environment
-    mc_dir = 'packs/' + packname + '/.minecraft'
-    if os.path.isdir(mc_dir):
-        print("[minecraft dir already created]")
-    else:
-        print("Creating .minecraft directory")
+    if not mc_dir:
         if not os.path.isdir('packs/'):
             os.mkdir('packs/')
-        if not os.path.isdir('packs/' + packname):
-            os.mkdir('packs/' + packname)
+        mc_dir = 'packs/' + packname
+    # Generate minecraft environment
+    print("Output directory is '%s'" % mc_dir)
+    if os.path.isdir(mc_dir):
+        if os.listdir(mc_dir):
+            print("Error: Output directory already exists and is not empty")
+            return
+        else:
+            print("Output directory exists (and is empty)")
+    else:
+        print("Creating output directory")
         os.mkdir(mc_dir)
+
+
+    print("Extracting %s" % zipfile)
+    with ZipFile(zipfile, 'r') as zip:
+        zip.extractall(packdata_dir)
 
     try:
         with open(packdata_dir + '/manifest.json', 'r') as mf:
@@ -71,61 +66,58 @@ def main(zipfile, user_mcdir=None):
         ml_message = ml_message + modloader['id'] + " "
 
     # Download mods
-    if not os.path.exists(mc_dir + '/.mod_success'):
-        if not os.path.isdir(mc_dir + '/mods'):
-            os.mkdir(mc_dir + '/mods')
-        print("Downloading mods")
-        if not os.path.isdir('.modcache'):
-            os.mkdir('.modcache')
+    print("Downloading mods")
+    if not os.path.isdir('.modcache'):
+        os.mkdir('.modcache')
 
-        # if not os.path.isdir('node_modules'):
-        #     print("Installing NodeJS dependencies")
-        #     subprocess.run(['npm', 'install'])
-        # subprocess.run(['node', 'mod_download.js', packdata_dir + '/manifest.json', '.modcache', packdata_dir + '/mods.json'])
+    # if not os.path.isdir('node_modules'):
+    #     print("Installing NodeJS dependencies")
+    #     subprocess.run(['npm', 'install'])
+    # subprocess.run(['node', 'mod_download.js', packdata_dir + '/manifest.json', '.modcache', packdata_dir + '/mods.json'])
 
-        mods, manual_downloads = download_all_mods(packdata_dir + '/manifest.json', '.modcache')
-        if len(manual_downloads) > 0:
-            while True:
-                actual_manual_dls = [] # which ones aren't already downloaded
-                for url, resp in manual_downloads:
-                    outfile = resp[3]
-                    if not os.path.exists(outfile):
-                        actual_manual_dls.append((url, outfile))
-                if len(actual_manual_dls) > 0:
-                    print("====MANUAL DOWNLOAD REQUIRED====")
-                    print("The following mods cannot be downloaded due to the new Project Distribution Toggle.")
-                    print("Please download them manually; the files will be retrieved from your downloads directly.")
-                    for url, outfile in actual_manual_dls:
-                        print("* %s (%s)" % (url, os.path.basename(outfile)))
-                    
-                    # TODO save user's configured downloads folder somewhere
-                    user_downloads_dir = os.environ['HOME'] + '/Downloads'
-                    print("Retrieving downloads from %s - if that isn't your browser's download location, enter" \
-                            % user_downloads_dir)
-                    print("the correct location below. Otherwise, press Enter to continue.")
-                    req_downloads_dir = input()
+    mods, manual_downloads = download_all_mods(packdata_dir + '/manifest.json', '.modcache')
+    if len(manual_downloads) > 0:
+        while True:
+            actual_manual_dls = [] # which ones aren't already downloaded
+            for url, resp in manual_downloads:
+                outfile = resp[3]
+                if not os.path.exists(outfile):
+                    actual_manual_dls.append((url, outfile))
+            if len(actual_manual_dls) > 0:
+                print("====MANUAL DOWNLOAD REQUIRED====")
+                print("The following mods cannot be downloaded due to the new Project Distribution Toggle.")
+                print("Please download them manually; the files will be retrieved from your downloads directly.")
+                for url, outfile in actual_manual_dls:
+                    print("* %s (%s)" % (url, os.path.basename(outfile)))
 
-                    req_downloads_dir = os.path.expanduser(req_downloads_dir)
-                    if len(req_downloads_dir) > 0:
-                        if not os.path.isdir(req_downloads_dir):
-                            print("- input directory is not a directory; ignoring")
-                        else:
-                            user_downloads_dir = req_downloads_dir
-                    print("Finding files in %s..." % user_downloads_dir)
-                    
-                    for url, outfile in actual_manual_dls:
-                        fname = os.path.basename(outfile).replace(' ', '+')
-                        dl_path = user_downloads_dir + '/' + fname
-                        if os.path.exists(dl_path):
-                            print(dl_path)
-                            shutil.move(dl_path, outfile)
-                else:
-                    break
+                # TODO save user's configured downloads folder somewhere
+                user_downloads_dir = os.environ['HOME'] + '/Downloads'
+                print("Retrieving downloads from %s - if that isn't your browser's download location, enter" \
+                        % user_downloads_dir)
+                print("the correct location below. Otherwise, press Enter to continue.")
+                req_downloads_dir = input()
+
+                req_downloads_dir = os.path.expanduser(req_downloads_dir)
+                if len(req_downloads_dir) > 0:
+                    if not os.path.isdir(req_downloads_dir):
+                        print("- input directory is not a directory; ignoring")
+                    else:
+                        user_downloads_dir = req_downloads_dir
+                print("Finding files in %s..." % user_downloads_dir)
+
+                for url, outfile in actual_manual_dls:
+                    fname = os.path.basename(outfile).replace(' ', '+')
+                    dl_path = user_downloads_dir + '/' + fname
+                    if os.path.exists(dl_path):
+                        print(dl_path)
+                        shutil.move(dl_path, outfile)
+            else:
+                break
 
         # Link mods
         print("Copying mods")
-        if not os.path.isdir(mc_dir + '/resources'):
-            os.mkdir(mc_dir + '/resources')
+        os.mkdir(mc_dir + '/mods')
+        os.mkdir(mc_dir + '/resources')
 
         for mod in mods:
             jar = mod[0]
@@ -145,10 +137,6 @@ def main(zipfile, user_mcdir=None):
             else:
                 print("Unknown file type %s" % type)
                 sys.exit(1)
-
-    # Create success marker
-    with open(mc_dir + '/.mod_success', 'wb') as f:
-        pass
 
     # Copy overrides
     override_dir = packdata_dir + '/overrides/'
@@ -341,6 +329,7 @@ def cp_safe(src, dst):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('zipfile')
-    parser.add_argument('--mcdir', dest='mcdir')
+    parser.add_argument('--outdir', dest='outdir')
     args = parser.parse_args(sys.argv[1:])
-    main(args.zipfile, args.mcdir)
+    with tempfile.TemporaryDirectory() as packdata_dir:
+        main(args.zipfile, packdata_dir=packdata_dir, mc_dir=args.outdir)
