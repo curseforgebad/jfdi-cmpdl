@@ -89,8 +89,8 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
                     actual_manual_dls.append((url, outfile))
             if len(actual_manual_dls) > 0:
                 print("====MANUAL DOWNLOAD REQUIRED====")
-                print("The following mods cannot be downloaded due to the new Project Distribution Toggle.")
-                print("Please download them manually; the files will be retrieved from your downloads directly.")
+                print("The following mods failed to download")
+                print("Please download them manually; the files will be retrieved from your downloads directory.")
                 for url, outfile in actual_manual_dls:
                     print("* %s (%s)" % (url, os.path.basename(outfile)))
 
@@ -153,21 +153,18 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
             else:
                 shutil.copyfile(override_dir + dir, mc_dir + '/' + dir)
     else:
-        print("This pack does not appear to include overrides")
-    print("Done!")
-    print()
-    print()
-    print()
-    print("The modpack has been downloaded")
+        print("Copying overrides [nothing to do]")
+
+    print("Done!\n\n\n\nThe modpack has been downloaded to: " + mc_dir)
     print(ml_message)
 
 # MOD DOWNLOADING
 
 def get_json(session, url, logtag):
     gotit = False
+    print(logtag + "GET (json) " + url)
     for tout in [3,5,10,20,30]:
         try:
-            print(logtag + "GET (json) " + url)
             r = session.get(url, timeout=tout)
             gotit = True
             break
@@ -215,7 +212,6 @@ def fetch_mod(session, f, out_dir, logtag, attempt):
                 print(logtag + "%s OK cached" % fn)
                 return (out_file, file_type)
 
-        print(logtag + "GET (mjar) " + dl)
         status = download(dl, out_file, session=session, progress=False)
         time.sleep(SLEEP_SECONDS - rnd)
         if sha1_expected != sha1(out_file):
@@ -227,6 +223,7 @@ def fetch_mod(session, f, out_dir, logtag, attempt):
         print(logtag + "%s OK downloaded" % fn)
         return (out_file, file_type)
     except:
+        print(logtag + "download failed (exception)")
         traceback.print_exc()
         return (f, 'dist-error' if attempt == "retry" else 'error', info)
 
