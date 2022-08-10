@@ -65,7 +65,7 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
         print(e)
         return
 
-    ml_message = 'You need to install: '
+    ml_message = 'You then need to install: '
     for modloader in manifest['minecraft']['modLoaders']:
         ml_message = ml_message + modloader['id'] + " "
 
@@ -80,67 +80,30 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
     # subprocess.run(['node', 'mod_download.js', packdata_dir + '/manifest.json', '.modcache', packdata_dir + '/mods.json'])
 
     mods, manual_downloads = download_all_mods(packdata_dir + '/manifest.json', '.modcache')
-    if len(manual_downloads) > 0:
-        while True:
-            actual_manual_dls = [] # which ones aren't already downloaded
-            for url, resp in manual_downloads:
-                outfile = resp[3]
-                if not os.path.exists(outfile):
-                    actual_manual_dls.append((url, outfile))
-            if len(actual_manual_dls) > 0:
-                print("====MANUAL DOWNLOAD REQUIRED====")
-                print("The following mods failed to download")
-                print("Please download them manually; the files will be retrieved from your downloads directory.")
-                for url, outfile in actual_manual_dls:
-                    print("* %s (%s)" % (url, os.path.basename(outfile)))
 
-                # TODO save user's configured downloads folder somewhere
-                user_downloads_dir = os.environ['HOME'] + '/Downloads'
-                print("Retrieving downloads from %s - if that isn't your browser's download location, enter" \
-                        % user_downloads_dir)
-                print("the correct location below. Otherwise, press Enter to continue.")
-                req_downloads_dir = input()
+    print("Copying mods")
+    os.mkdir(mc_dir + '/mods')
+    os.mkdir(mc_dir + '/resources')
 
-                req_downloads_dir = os.path.expanduser(req_downloads_dir)
-                if len(req_downloads_dir) > 0:
-                    if not os.path.isdir(req_downloads_dir):
-                        print("- input directory is not a directory; ignoring")
-                    else:
-                        user_downloads_dir = req_downloads_dir
-                print("Finding files in %s..." % user_downloads_dir)
-
-                for url, outfile in actual_manual_dls:
-                    fname = os.path.basename(outfile).replace(' ', '+')
-                    dl_path = user_downloads_dir + '/' + fname
-                    if os.path.exists(dl_path):
-                        print(dl_path)
-                        shutil.move(dl_path, outfile)
-            else:
-                break
-
-        # Link mods
-        print("Copying mods")
-        os.mkdir(mc_dir + '/mods')
-        os.mkdir(mc_dir + '/resources')
-
-        for mod in mods:
-            jar = mod[0]
-            type = mod[1]
-            if type == 'mc-mods':
-                modfile = mc_dir + '/mods/' + os.path.basename(jar)
-                if not os.path.exists(modfile):
-                    cp_safe(os.path.abspath(jar), modfile)
-            elif type == 'texture-packs':
-                print("Extracting texture pack %s" % jar)
-                with tempfile.TemporaryDirectory() as texpack_dir:
-                    with ZipFile(jar, 'r') as zip:
-                        zip.extractall(texpack_dir)
-                    for dir in os.listdir(texpack_dir + '/assets'):
-                        f = texpack_dir + '/assets/' + dir
-                        cp_safe(f, mc_dir + '/resources/' + dir)
-            else:
-                print("Unknown file type %s" % type)
-                sys.exit(1)
+    # TODO detect texture packs
+    #for mod in mods:
+    #    jar = mod[0]
+    #    type = mod[1]
+    #    if type == 'mc-mods':
+    #        modfile = mc_dir + '/mods/' + os.path.basename(jar)
+    #        if not os.path.exists(modfile):
+    #            cp_safe(os.path.abspath(jar), modfile)
+    #    elif type == 'texture-packs':
+    #        print("Extracting texture pack %s" % jar)
+    #        with tempfile.TemporaryDirectory() as texpack_dir:
+    #            with ZipFile(jar, 'r') as zip:
+    #                zip.extractall(texpack_dir)
+    #            for dir in os.listdir(texpack_dir + '/assets'):
+    #                f = texpack_dir + '/assets/' + dir
+    #                cp_safe(f, mc_dir + '/resources/' + dir)
+    #    else:
+    #        print("Unknown file type %s" % type)
+    #        sys.exit(1)
 
     # Copy overrides
     override_dir = packdata_dir + '/overrides/'
@@ -148,22 +111,32 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
         print("Copying overrides")
         for dir in os.listdir(override_dir):
             print(dir + "...")
-            if os.path.isdir(override_dir + dir):
-                copy_tree(override_dir + dir, mc_dir + '/' + dir)
-            else:
-                shutil.copyfile(override_dir + dir, mc_dir + '/' + dir)
+            cp_safe(override_dir + dir, mc_dir + '/' + dir)
+
     else:
         print("Copying overrides [nothing to do]")
 
     print("Done!\n\n\n\nThe modpack has been downloaded to: " + mc_dir)
     print(ml_message)
+    if len(manual_downloads) > 0:
+        msg=""
+        msg+="====MANUAL DOWNLOAD REQUIRED====\n"
+        msg+="The following mods failed to download\n"
+        msg+="Please download them manually and place them in " + mc_dir + "/mods\n"
+        for url, resp in manual_downloads:
+            msg+="* %s\n" % url
+        print(msg[:-1])
+        with open(mc_dir + '/MANUAL-DOWNLOAD-README.txt', 'w') as f:
+            f.write(msg)
+
+
 
 # MOD DOWNLOADING
 
 def get_json(session, url, logtag):
     gotit = False
     print(logtag + "GET (json) " + url)
-    for tout in [3,5,10,20,30]:
+    for tout in [4,5,10,20,30]:
         try:
             r = session.get(url, timeout=tout)
             gotit = True
@@ -199,7 +172,7 @@ def fetch_mod(session, f, out_dir, logtag, attempt):
 
         if len(info) != 1:
             print(logtag + "Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
-            return (f, 'dist-error' if attempt == "retry" else 'error', info)
+            return (f, 'dist-error' if attempt == "retry" else 'error', project_info)
         info = info[0]
 
         fn = info['name']
@@ -225,7 +198,7 @@ def fetch_mod(session, f, out_dir, logtag, attempt):
     except:
         print(logtag + "download failed (exception)")
         traceback.print_exc()
-        return (f, 'dist-error' if attempt == "retry" else 'error', info)
+        return (f, 'dist-error' if attempt == "retry" else 'error', project_info)
 
 async def download_mods_async(manifest, out_dir):
     with ThreadPoolExecutor(max_workers=WORKERS) as executor, \
@@ -250,6 +223,7 @@ async def download_mods_async(manifest, out_dir):
                     print("failed to fetch %s, retrying later" % resp[0])
                     retry_tasks.append(resp[0])
                 elif resp[1] == 'dist-error':
+                    print(resp[2])
                     manual_dl_url = resp[2]['links'][0]['link'] + '/download/' + str(resp[0]['fileID'])
                     manual_downloads.append((manual_dl_url, resp))
                     # add to jars list so that the file gets linked
@@ -311,7 +285,7 @@ def download(url, dest, progress=False, session=None):
                 for chunk in r.iter_content(1048576):
                     f.write(chunk)
                     n += len(chunk)
-                    #status_bar(url, n / size)
+                    status_bar(url, n / size)
             else:
                 f.write(r.content)
     except requests.RequestException:
