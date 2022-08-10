@@ -19,6 +19,8 @@ import random
 import shutil
 import argparse
 import tempfile
+import traceback
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from zipfile import ZipFile
 
@@ -180,7 +182,6 @@ def get_json(session, url, logtag):
             gotit = True
         except requests.Timeout as e:
             print(logtag + "timeout")
-            import traceback
             traceback.print_exc()
             print(logtag + "Error timeout trying to access %s" % url)
             return None
@@ -189,37 +190,46 @@ def get_json(session, url, logtag):
 
     return json.loads(r.text)
 
-def fetch_mod(session, f, out_dir, logtag):
-    pid = f['projectID']
-    fid = f['fileID']
-    project_info = get_json(session, API_URL + ('/mod/%d' % pid), logtag)
-    if project_info is None:
-        print(logtag + "fetch failed")
-        return (f, 'error')
+def fetch_mod(session, f, out_dir, logtag, attempt):
+    try:
+        pid = f['projectID']
+        fid = f['fileID']
+        project_info = get_json(session, API_URL + ('/mod/%d' % pid), logtag)
+        if project_info is None:
+            print(logtag + "fetch failed")
+            return (f, 'error')
 
-    file_type = "mc-mods"
-    info = [x for x in project_info["versions"] if x["id"] == fid]
+        file_type = "mc-mods"
+        info = [x for x in project_info["versions"] if x["id"] == fid]
 
-    if len(info) != 1:
-        print(logtag + "Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
-        return (f, 'error')
-    info = info[0]
+        if len(info) != 1:
+            print(logtag + "Could not find mod jar for pid:%s fid:%s, got %s results" % (pid, fid, len(info)))
+            return (f, 'dist-error' if attempt == "retry" else 'error', info)
+        info = info[0]
 
-    fn = info['name']
-    dl = info['url']
-    out_file = out_dir + '/' + fn
+        fn = info['name']
+        dl = info['url']
+        sha1_expected = info['sha1'].lower()
+        out_file = out_dir + '/' + fn
 
-    if os.path.exists(out_file):
-        if os.path.getsize(out_file) == info['size']:
-            print(logtag + "%s OK" % fn)
-            return (out_file, file_type)
+        if os.path.exists(out_file):
+            if os.path.getsize(out_file) == info['size'] and sha1_expected == sha1(out_file):
+                print(logtag + "%s OK cached" % fn)
+                return (out_file, file_type)
 
-    print(logtag + "GET (mjar) " + dl)
-    status = download(dl, out_file, session=session, progress=False)
-    if status != 200:
-        print(logtag + "download failed (error %d)" % status)
-        return (f, 'error')
-    return (out_file, file_type)
+        print(logtag + "GET (mjar) " + dl)
+        status = download(dl, out_file, session=session, progress=False)
+        if sha1_expected != sha1(out_file):
+            print(logtag + "download failed (SHA1 mismatch!)" % status)
+            return (f, 'error')
+        if status != 200:
+            print(logtag + "download failed (error %d)" % status)
+            return (f, 'error')
+        print(logtag + "%s OK downloaded" % fn)
+        return (out_file, file_type)
+    except:
+        traceback.print_exc()
+        return (f, 'dist-error' if attempt == "retry" else 'error', info)
 
 async def download_mods_async(manifest, out_dir):
     with ThreadPoolExecutor(max_workers=WORKERS) as executor, \
@@ -231,7 +241,7 @@ async def download_mods_async(manifest, out_dir):
         print("Downloading %s mods" % maxn)
         for n, f in enumerate(manifest['files']):
             logtag = "[" + str(n+1) + "/" + str(maxn) + "] "
-            task = loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir, logtag))
+            task = loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir, logtag, "first attempt"))
             tasks.append(task)
 
         jars = []
@@ -244,7 +254,7 @@ async def download_mods_async(manifest, out_dir):
                     print("failed to fetch %s, retrying later" % resp[0])
                     retry_tasks.append(resp[0])
                 elif resp[1] == 'dist-error':
-                    manual_dl_url = resp[2]['links']['websiteUrl'] + '/download/' + str(resp[0]['fileID'])
+                    manual_dl_url = resp[2]['links'][0]['link'] + '/download/' + str(resp[0]['fileID'])
                     manual_downloads.append((manual_dl_url, resp))
                     # add to jars list so that the file gets linked
                     jars.append(resp[3:])
@@ -256,7 +266,7 @@ async def download_mods_async(manifest, out_dir):
                 print("retrying...")
                 time.sleep(2)
             for f in retry_tasks:
-                tasks.append(loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir, logtag)))
+                tasks.append(loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir, logtag, "retry")))
         return jars, manual_downloads
 
 
@@ -325,6 +335,16 @@ def cp_safe(src, dst):
         shutil.copytree(src, dst)
     else:
         shutil.copyfile(src, dst)
+
+def sha1(src):
+    h = hashlib.sha1()
+    with open(src, 'rb') as f:
+        while True:
+            data = f.read(4096)
+            if not data:
+                break
+            h.update(data)
+    return h.hexdigest()
 
 # And, of course, the main:
 
