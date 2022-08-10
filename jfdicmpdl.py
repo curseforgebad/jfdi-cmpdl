@@ -256,7 +256,7 @@ async def download_mods_async(manifest, out_dir):
                 print("retrying...")
                 time.sleep(2)
             for f in retry_tasks:
-                tasks.append(loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir)))
+                tasks.append(loop.run_in_executor(executor, fetch_mod, *(session, f, out_dir, logtag)))
         return jars, manual_downloads
 
 
