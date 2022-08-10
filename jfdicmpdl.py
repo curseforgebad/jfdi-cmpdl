@@ -24,7 +24,9 @@ from zipfile import ZipFile
 
 
 API_URL = 'https://api.modpacks.ch/public'
-
+WORKERS = 6
+REQUESTS_PER_SEC = 4
+SLEEP_SECONDS = WORKERS / REQUESTS_PER_SEC
 
 
 def main(zipfile, *, packdata_dir, mc_dir=None):
@@ -160,7 +162,7 @@ def main(zipfile, *, packdata_dir, mc_dir=None):
 # MOD DOWNLOADING
 
 def get_json(session, url, logtag):
-    rnd = random.random()
+    rnd = random.random() * SLEEP_SECONDS
     time.sleep(rnd)
     gotit = False
     for tout in [3,5,10,20,30]:
@@ -183,7 +185,7 @@ def get_json(session, url, logtag):
             print(logtag + "Error timeout trying to access %s" % url)
             return None
 
-    time.sleep(1-rnd)
+    time.sleep(SLEEP_SECONDS - rnd)
 
     return json.loads(r.text)
 
@@ -220,7 +222,7 @@ def fetch_mod(session, f, out_dir, logtag):
     return (out_file, file_type)
 
 async def download_mods_async(manifest, out_dir):
-    with ThreadPoolExecutor(max_workers=8) as executor, \
+    with ThreadPoolExecutor(max_workers=WORKERS) as executor, \
             requests.Session() as session:
         loop = asyncio.get_event_loop()
         tasks = []
